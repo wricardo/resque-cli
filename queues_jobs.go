@@ -2,7 +2,8 @@ package main
 
 import (
 	"fmt"
-	"time"
+
+	"github.com/garyburd/redigo/redis"
 )
 
 type QueuesJobs struct {
@@ -19,30 +20,27 @@ func NewQueueJobs() *QueuesJobs {
 	return obj
 }
 
-func (this *QueuesJobs) store(qj chan QueueJob) {
-	go func() {
-		for {
-			select {
-			case q := <-qj:
-				this.data[q.name] = q
-			case <-this.get_values:
-				this.response <- this.data
-			}
-		}
-	}()
+func (this *QueuesJobs) _store(q QueueJob) {
+	this.data[q.name] = q
 }
 
-func (this *QueuesJobs) print(tick <-chan time.Time) {
-	go func() {
-		for _ = range tick {
-			fmt.Println("\033[2J")
-			fmt.Println("\033[H")
-			this.get_values <- true
-			n := <-this.response
-			sorted := getMapKeysSorted(n)
-			for _, queue_name := range sorted {
-				fmt.Println(queue_name, n[queue_name].jobs)
-			}
-		}
-	}()
+func (this *QueuesJobs) print() {
+	fmt.Println("\033[2J")
+	fmt.Println("\033[H")
+	n := this.data
+	sorted := getMapKeysSorted(n)
+	for _, queue_name := range sorted {
+		fmt.Println(queue_name, n[queue_name].jobs)
+	}
+}
+
+func (this *QueuesJobs) SendToPoller(poller *Poller) {
+	poller.queue_to_poll <- *this
+}
+
+func (this *QueuesJobs) Poll(conn redis.Conn) {
+	for k, qj := range this.data {
+		qj.Poll(conn)
+		this.data[k] = qj
+	}
 }

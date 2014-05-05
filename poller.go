@@ -5,16 +5,16 @@ import (
 )
 
 type Poller struct {
-	queue_to_poll chan Queue
+	queue_to_poll chan QueuesJobs
 	redis_pool    *redis.Pool
-	out           chan QueueJob
+	out           chan QueuesJobs
 }
 
 func NewPoller(redis_pool *redis.Pool) *Poller {
 	p := new(Poller)
-	p.queue_to_poll = make(chan Queue)
+	p.queue_to_poll = make(chan QueuesJobs)
 	p.redis_pool = redis_pool
-	p.out = make(chan QueueJob)
+	p.out = make(chan QueuesJobs)
 	return p
 }
 
@@ -25,14 +25,8 @@ func (this *Poller) Poll() {
 		for {
 			select {
 			case q := <-this.queue_to_poll:
-				llen, err := redis.Int(conn.Do("llen", "resque:queue:"+q))
-				if err != nil {
-					panic(err)
-				}
-				this.out <- QueueJob{
-					name: q,
-					jobs: llen,
-				}
+				q.Poll(conn)
+				this.out <- q
 			}
 		}
 	}()

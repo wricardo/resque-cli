@@ -1,11 +1,12 @@
 package main
 
-func sliceStringsToSliceQueues(strings []string) Queues {
-	queues := make(Queues, len(strings))
+func sliceStringsToQueuesJobs(strings []string) QueuesJobs {
+	queues_jobs := NewQueueJobs()
 	for x := 0; x < len(strings); x++ {
-		queues[x] = Queue(strings[x])
+		qj := NewQueueJob(Queue(strings[x]))
+		queues_jobs._store(*qj)
 	}
-	return queues
+	return *queues_jobs
 }
 
 func removeIgnoredQueues(queues []string) []string {

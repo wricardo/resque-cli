@@ -30,13 +30,11 @@ func main() {
 	poller := NewPoller(pool)
 	poller.Poll()
 
-	queue_jobs := NewQueueJobs()
-	queue_jobs.store(poller.out)
-	queue_jobs.print(time.Tick(1 * time.Second))
-
 	for {
 		queues := getQueues(pool)
 		queues.SendToPoller(poller)
+		result := <-poller.out
+		result.print()
 		Sleep(*poll_interval)
 	}
 
@@ -47,7 +45,7 @@ func Sleep(poll_interval string) {
 	time.Sleep(time.Millisecond * time.Duration(pi))
 }
 
-func getQueues(pool *redis.Pool) Queues {
+func getQueues(pool *redis.Pool) QueuesJobs {
 	conn := pool.Get()
 	defer conn.Close()
 	var tmp []string
@@ -59,7 +57,7 @@ func getQueues(pool *redis.Pool) Queues {
 	} else {
 		tmp, _ = redis.Strings(conn.Do("smembers", "resque:queues"))
 	}
-	return sliceStringsToSliceQueues(removeIgnoredQueues(tmp))
+	return sliceStringsToQueuesJobs(removeIgnoredQueues(tmp))
 }
 
 func newRedisPool(server string) *redis.Pool {
