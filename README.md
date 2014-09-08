@@ -1,4 +1,4 @@
-resque-cli
+resque-cli [![Build Status](https://travis-ci.org/wricardo/resque-cli.svg?branch=master)](https://travis-ci.org/wricardo/resque-cli)
 ==========
 
 Tool to monitor Resque on the command line
