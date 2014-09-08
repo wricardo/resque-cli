@@ -1,63 +1,70 @@
 package main
 
 import (
-	"flag"
-	"strconv"
-	"strings"
-	"time"
-
+	"github.com/codegangsta/cli"
 	"github.com/garyburd/redigo/redis"
+	"log"
+	"os"
+	"time"
+	"fmt"
 )
-
-var (
-	pool             *redis.Pool
-	queues_to_ignore []string
-	queues_to_watch  []string
-)
-
-func initGlobals() {
-	pool = newRedisPool(*redis_host + ":" + *redis_port)
-	queues_to_ignore = strings.Split(*str_queues_to_ignore, ",")
-	if *str_queues_to_watch != "" {
-		queues_to_watch = strings.Split(*str_queues_to_watch, ",")
-	}
-}
 
 func main() {
-	flag.Parse()
-	initGlobals()
-
-	poller := NewPoller(pool)
-	poller.Poll()
-
-	for {
-		queues := getQueues(pool)
-		queues.SendToPoller(poller)
-		result := <-poller.out
-		result.print()
-		Sleep(*poll_interval)
+	app := cli.NewApp()
+	app.Name = "resque-cli"
+	app.Usage = "Monitor your resque queues from the cli"
+	app.Commands = []cli.Command{
+		{
+			Name:  "watch",
+			Usage: "options for task templates",
+			Subcommands: []cli.Command{
+				{
+					Name:   "queues",
+					Usage:  "Watch how many jobs you have on the resque queues",
+					Action: watchResqueQueues,
+					Flags: []cli.Flag{
+						cli.StringFlag{
+							Name:  "host",
+							Value: "localhost",
+							Usage: "Redis host",
+						},
+						cli.StringFlag{
+							Name:  "port",
+							Value: "6379",
+							Usage: "Redis port",
+						},
+						cli.StringFlag{
+							Name:  "i",
+							Value: "1s",
+							Usage: "Refresh interval. ex: 500ms|1s|1m",
+						},
+					},
+				},
+			},
+		},
 	}
 
+	app.Run(os.Args)
 }
 
-func Sleep(poll_interval string) {
-	pi, _ := strconv.Atoi(poll_interval)
-	time.Sleep(time.Millisecond * time.Duration(pi))
-}
+func watchResqueQueues(c *cli.Context) {
+	pool := newRedisPool(c.String("host") + ":" + c.String("port"))
+	i, err := time.ParseDuration(c.String("i"))
+	if err != nil {
+		log.Fatalln("Invalid parameter \"i\"")
+	}
+	ticker := time.NewTicker(i)
 
-func getQueues(pool *redis.Pool) QueuesJobs {
-	conn := pool.Get()
-	defer conn.Close()
-	var tmp []string
-	if len(queues_to_watch) > 0 {
-		tmp = make([]string, len(queues_to_watch))
-		for i := 0; i < len(queues_to_watch); i++ {
-			tmp[i] = "resque:queue:" + queues_to_watch[i]
+	for _ = range ticker.C {
+		clearScreen()
+		conn := pool.Get()
+		defer conn.Close()
+		queues, err := GetQueues(conn)
+		if err != nil {
+			log.Fatalln(err)
 		}
-	} else {
-		tmp, _ = redis.Strings(conn.Do("smembers", "resque:queues"))
+		queues.PrintCountJobs(conn)
 	}
-	return sliceStringsToQueuesJobs(removeIgnoredQueues(tmp))
 }
 
 func newRedisPool(server string) *redis.Pool {
@@ -76,4 +83,9 @@ func newRedisPool(server string) *redis.Pool {
 			return err
 		},
 	}
+}
+
+func clearScreen(){
+	fmt.Println("\033[2J")
+	fmt.Println("\033[H")
 }
