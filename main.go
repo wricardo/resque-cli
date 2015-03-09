@@ -34,6 +34,11 @@ func main() {
 							Usage: "Redis port",
 						},
 						cli.StringFlag{
+							Name:  "db",
+							Value: "0",
+							Usage: "Redis db",
+						},
+						cli.StringFlag{
 							Name:  "i",
 							Value: "1s",
 							Usage: "Refresh interval. ex: 500ms|1s|1m",
@@ -48,7 +53,7 @@ func main() {
 }
 
 func watchResqueQueues(c *cli.Context) {
-	pool := newRedisPool(c.String("host") + ":" + c.String("port"))
+	pool := newRedisPool(c.String("host") + ":" + c.String("port"), c.String("db"))
 	i, err := time.ParseDuration(c.String("i"))
 	if err != nil {
 		log.Fatalln("Invalid parameter \"i\"")
@@ -67,7 +72,7 @@ func watchResqueQueues(c *cli.Context) {
 	}
 }
 
-func newRedisPool(server string) *redis.Pool {
+func newRedisPool(server string, db string) *redis.Pool {
 	return &redis.Pool{
 		MaxIdle:     3,
 		IdleTimeout: 240 * time.Second,
@@ -76,6 +81,7 @@ func newRedisPool(server string) *redis.Pool {
 			if err != nil {
 				return nil, err
 			}
+			c.Do("SELECT", db)
 			return c, err
 		},
 		TestOnBorrow: func(c redis.Conn, t time.Time) error {
